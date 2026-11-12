@@ -16,6 +16,28 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "public" / "audio"
 CLIPS = OUT / "clips"
 MANIFEST = OUT / "manifest.json"
+
+
+def duration_ms(path: Path) -> int:
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=nw=1:nk=1",
+                str(path),
+            ],
+            text=True,
+        ).strip()
+        return max(1, int(round(float(out) * 1000)))
+    except Exception:
+        return 0
+
 VOICE = "de-DE-SeraphinaMultilingualNeural"
 RATE = "-10%"
 CONCURRENCY = 6
@@ -182,12 +204,12 @@ async def synthesize(text: str, dest: Path, retries: int = 5) -> None:
 async def main() -> int:
     CLIPS.mkdir(parents=True, exist_ok=True)
     utterances = all_utterances()
-    manifest: dict[str, str] = {}
+    manifest: dict[str, dict[str, str | int]] = {}
     jobs: list[tuple[str, Path]] = []
     for text in utterances:
         name = f"{slug(text)}.mp3"
         rel = f"clips/{name}"
-        manifest[text] = rel
+        manifest[text] = {"src": rel, "durationMs": 0}
         dest = OUT / rel
         if dest.exists() and dest.stat().st_size > 400:
             continue
@@ -208,8 +230,13 @@ async def main() -> int:
     if jobs:
         await asyncio.gather(*(worker(text, dest) for text, dest in jobs))
 
+    for text, entry in manifest.items():
+        rel = str(entry["src"])
+        dest = OUT / rel
+        if dest.exists():
+            entry["durationMs"] = duration_ms(dest)
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    missing = [text for text, rel in manifest.items() if not (OUT / rel).exists()]
+    missing = [text for text, entry in manifest.items() if not (OUT / str(entry["src"])).exists()]
     if missing:
         print("MISSING", len(missing), file=sys.stderr)
         return 1

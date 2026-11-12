@@ -3,11 +3,22 @@ export type SpeechSettings = {
   voiceURI: string | null
 }
 
+export type SpeakStatus = 'finished' | 'cancelled'
+export type ClipInfo = { src: string; durationMs: number }
+
+/** Pause after a finished praise or reveal before the next task starts. */
+export const AFTER_SPEECH_PAUSE_MS = 800
+/** Used when a clip's length is unknown or playback never starts. */
+export const FALLBACK_SPEECH_MS = 3000
+const CLIP_GAP_MS = 40
+const WATCHDOG_EXTRA_MS = 1500
+
 let audioCtx: AudioContext | null = null
 let audioBroken = false
-let manifest: Record<string, string> | null = null
+let manifest: Record<string, ClipInfo> | null = null
 let current: HTMLAudioElement | null = null
 let queueToken = 0
+let cancelCurrent: (() => void) | null = null
 
 function context(): AudioContext | null {
   if (audioBroken) return null
@@ -38,12 +49,29 @@ export function unlockAudio(): void {
   void loadManifest()
 }
 
-async function loadManifest(): Promise<Record<string, string>> {
+export function normalizeManifest(raw: unknown): Record<string, ClipInfo> {
+  const out: Record<string, ClipInfo> = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [text, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'string') {
+      out[text] = { src: value, durationMs: 0 }
+      continue
+    }
+    if (value && typeof value === 'object' && 'src' in value) {
+      const src = String((value as { src: unknown }).src)
+      const durationMs = Number((value as { durationMs?: unknown }).durationMs) || 0
+      if (src) out[text] = { src, durationMs: durationMs > 0 ? durationMs : 0 }
+    }
+  }
+  return out
+}
+
+async function loadManifest(): Promise<Record<string, ClipInfo>> {
   if (manifest) return manifest
   try {
     const response = await fetch(new URL('audio/manifest.json', document.baseURI))
     if (response.ok) {
-      manifest = (await response.json()) as Record<string, string>
+      manifest = normalizeManifest(await response.json())
       return manifest
     }
   } catch {
@@ -53,8 +81,36 @@ async function loadManifest(): Promise<Record<string, string>> {
   return manifest
 }
 
-function clipUrl(text: string, map: Record<string, string>): string | null {
-  const rel = map[text]
+/** Expected playback time for a clip chain, from manifest lengths or a safe fallback. */
+export function expectedSpeechMs(
+  parts: string[],
+  rate: number,
+  map: Record<string, ClipInfo> = {},
+): number {
+  const cleaned = parts.map((part) => part.trim()).filter(Boolean)
+  if (cleaned.length === 0) return 0
+  const speed = Math.min(1.35, Math.max(0.7, rate || 1))
+  let known = 0
+  let knownCount = 0
+  for (const part of cleaned) {
+    const ms = map[part]?.durationMs ?? 0
+    if (ms > 0) {
+      known += ms
+      knownCount += 1
+    }
+  }
+  const gaps = Math.max(0, cleaned.length - 1) * CLIP_GAP_MS
+  if (knownCount === cleaned.length) return Math.ceil((known + gaps) / speed)
+  const chars = cleaned.join(' ').length
+  const fromText = Math.ceil((Math.max(chars, 24) / 12) * 1000 / speed)
+  const missing = cleaned.length - knownCount
+  const fromKnown =
+    knownCount > 0 ? Math.ceil((known + missing * FALLBACK_SPEECH_MS + gaps) / speed) : 0
+  return Math.max(FALLBACK_SPEECH_MS, fromText, fromKnown)
+}
+
+function clipUrl(text: string, map: Record<string, ClipInfo>): string | null {
+  const rel = map[text]?.src
   if (!rel) return null
   return new URL(`audio/${rel}`, document.baseURI).href
 }
@@ -122,75 +178,165 @@ export function germanVoices(): SpeechSynthesisVoice[] {
   return german.length > 0 ? german : voices
 }
 
-function fallbackSpeak(text: string, settings: SpeechSettings): void {
-  const synth = window.speechSynthesis
-  if (!synth || !text) return
-  try {
-    if (synth.speaking) synth.cancel()
-    const utter = new SpeechSynthesisUtterance(text)
-    const voice = pickVoice(settings.voiceURI)
-    if (voice) {
-      utter.voice = voice
-      utter.lang = voice.lang
-    } else {
-      utter.lang = 'de-DE'
+function sleepForToken(ms: number, token: number): Promise<SpeakStatus> {
+  return new Promise((resolve) => {
+    const started = Date.now()
+    const tick = () => {
+      if (token !== queueToken) {
+        resolve('cancelled')
+        return
+      }
+      const left = ms - (Date.now() - started)
+      if (left <= 0) {
+        resolve(token === queueToken ? 'finished' : 'cancelled')
+        return
+      }
+      window.setTimeout(tick, Math.min(left, 100))
     }
-    utter.rate = Math.min(1.3, Math.max(0.6, settings.speechRate || 1))
-    utter.pitch = 1
-    synth.speak(utter)
-  } catch {
-    /* The clock still works when this iPad has no German voice. */
-  }
+    window.setTimeout(tick, Math.min(ms, 100))
+  })
 }
 
-function playQueue(urls: string[], rate: number, token: number): void {
-  let index = 0
-  const playNext = () => {
-    if (token !== queueToken) return
-    if (index >= urls.length) return
-    const el = new Audio(urls[index])
-    el.preload = 'auto'
-    el.playbackRate = Math.min(1.35, Math.max(0.7, rate || 1))
-    current = el
-    index += 1
-    el.addEventListener('ended', () => {
-      if (token !== queueToken) return
-      window.setTimeout(playNext, 40)
-    })
-    el.addEventListener('error', () => {
-      if (token !== queueToken) return
-      playNext()
-    })
-    const start = el.play()
-    if (start) void start.catch(() => playNext())
-  }
-  playNext()
+function fallbackSpeak(text: string, settings: SpeechSettings, token: number, waitMs: number): Promise<SpeakStatus> {
+  const synth = window.speechSynthesis
+  if (!synth || !text) return sleepForToken(waitMs, token)
+  return new Promise((resolve) => {
+    let watchdog = 0
+    const finish = (status: SpeakStatus) => {
+      window.clearTimeout(watchdog)
+      resolve(status)
+    }
+    try {
+      if (synth.speaking) synth.cancel()
+      const utter = new SpeechSynthesisUtterance(text)
+      const voice = pickVoice(settings.voiceURI)
+      if (voice) {
+        utter.voice = voice
+        utter.lang = voice.lang
+      } else {
+        utter.lang = 'de-DE'
+      }
+      utter.rate = Math.min(1.3, Math.max(0.6, settings.speechRate || 1))
+      utter.pitch = 1
+      watchdog = window.setTimeout(() => {
+        if (token !== queueToken) finish('cancelled')
+        else finish('finished')
+      }, waitMs + WATCHDOG_EXTRA_MS)
+      utter.onend = () => {
+        if (token !== queueToken) finish('cancelled')
+        else finish('finished')
+      }
+      utter.onerror = () => {
+        if (token !== queueToken) finish('cancelled')
+        else void sleepForToken(waitMs, token).then(finish)
+      }
+      synth.speak(utter)
+    } catch {
+      void sleepForToken(waitMs, token).then(resolve)
+    }
+  })
 }
 
-/** Speak one or more prepared clips. Missing clips fall back to the device voice. */
-export function speakParts(parts: string[], settings: SpeechSettings): void {
-  const cleaned = parts.map((part) => part.trim()).filter(Boolean)
-  if (cleaned.length === 0) return
-  hush()
-  const token = ++queueToken
-  void loadManifest().then((map) => {
-    if (token !== queueToken) return
-    const urls = cleaned.map((part) => clipUrl(part, map))
-    if (urls.every((url): url is string => Boolean(url))) {
-      playQueue(urls, settings.speechRate || 1, token)
+function playOne(
+  url: string,
+  rate: number,
+  token: number,
+  clipMs: number,
+): Promise<'ended' | 'failed' | 'cancelled'> {
+  return new Promise((resolve) => {
+    if (token !== queueToken) {
+      resolve('cancelled')
       return
     }
-    fallbackSpeak(cleaned.join(' ').replace(/\s+/g, ' '), settings)
+    const el = new Audio(url)
+    el.preload = 'auto'
+    el.playbackRate = rate
+    current = el
+    let settled = false
+    let watchdog = 0
+    const done = (status: 'ended' | 'failed' | 'cancelled') => {
+      if (settled) return
+      settled = true
+      window.clearTimeout(watchdog)
+      if (cancelCurrent === doneAsCancel) cancelCurrent = null
+      if (current === el) current = null
+      resolve(status)
+    }
+    const doneAsCancel = () => done('cancelled')
+    cancelCurrent = doneAsCancel
+    watchdog = window.setTimeout(
+      () => done(token !== queueToken ? 'cancelled' : 'failed'),
+      clipMs + WATCHDOG_EXTRA_MS,
+    )
+    el.addEventListener('ended', () => done(token !== queueToken ? 'cancelled' : 'ended'))
+    el.addEventListener('error', () => done(token !== queueToken ? 'cancelled' : 'failed'))
+    const start = el.play()
+    if (start) void start.catch(() => done(token !== queueToken ? 'cancelled' : 'failed'))
+  })
+}
+
+async function playQueue(
+  parts: string[],
+  urls: string[],
+  rate: number,
+  token: number,
+  map: Record<string, ClipInfo>,
+): Promise<SpeakStatus> {
+  const started = Date.now()
+  const expected = expectedSpeechMs(parts, rate, map)
+  const speed = Math.min(1.35, Math.max(0.7, rate || 1))
+  let heard = 0
+  for (let index = 0; index < urls.length; index += 1) {
+    if (token !== queueToken) return 'cancelled'
+    const clipMs = Math.ceil((map[parts[index]]?.durationMs || FALLBACK_SPEECH_MS) / speed)
+    const result = await playOne(urls[index], speed, token, clipMs)
+    if (result === 'cancelled' || token !== queueToken) return 'cancelled'
+    if (result === 'ended') heard += 1
+    if (index < urls.length - 1) {
+      const gap = await sleepForToken(CLIP_GAP_MS, token)
+      if (gap === 'cancelled') return 'cancelled'
+    }
+  }
+  if (token !== queueToken) return 'cancelled'
+  if (heard === 0) {
+    const left = Math.max(0, expected - (Date.now() - started))
+    return sleepForToken(left || expected, token)
+  }
+  if (heard < urls.length) {
+    const left = Math.max(0, expected - (Date.now() - started))
+    if (left > 0) return sleepForToken(left, token)
+  }
+  return 'finished'
+}
+
+/** Speak one or more prepared clips. Resolves when the whole chain has ended, or after a fallback delay. */
+export function speakParts(parts: string[], settings: SpeechSettings): Promise<SpeakStatus> {
+  const cleaned = parts.map((part) => part.trim()).filter(Boolean)
+  hush()
+  if (cleaned.length === 0) return Promise.resolve('finished')
+  const token = ++queueToken
+  const rate = settings.speechRate || 1
+  return loadManifest().then(async (map) => {
+    if (token !== queueToken) return 'cancelled'
+    const expected = expectedSpeechMs(cleaned, rate, map)
+    const urls = cleaned.map((part) => clipUrl(part, map))
+    if (urls.every((url): url is string => Boolean(url))) {
+      return playQueue(cleaned, urls, rate, token, map)
+    }
+    return fallbackSpeak(cleaned.join(' ').replace(/\s+/g, ' '), settings, token, expected)
   })
 }
 
 /** Speak in the click that the child just made. iPad Safari ignores sound without a gesture. */
-export function speak(text: string, settings: SpeechSettings): void {
-  speakParts([text], settings)
+export function speak(text: string, settings: SpeechSettings): Promise<SpeakStatus> {
+  return speakParts([text], settings)
 }
 
 export function hush(): void {
   queueToken += 1
+  const cancel = cancelCurrent
+  cancelCurrent = null
+  cancel?.()
   if (current) {
     try {
       current.pause()
@@ -205,4 +351,10 @@ export function hush(): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Clears cached clips and stops playback so unit tests can start clean. */
+export function resetAudioForTests(): void {
+  manifest = null
+  hush()
 }

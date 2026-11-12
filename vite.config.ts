@@ -46,7 +46,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        cacheId: 'ticktack-v2',
+        cacheId: 'ticktack-v3',
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2,mp3,json}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/\.[a-z0-9]+$/i],

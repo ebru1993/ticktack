@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { hush, playSuccess, playTap, playTryAgain, speak, speakParts } from '../audio.ts'
+import { AFTER_SPEECH_PAUSE_MS, hush, playSuccess, playTap, playTryAgain, speak, speakParts, type SpeakStatus } from '../audio.ts'
 import { AnalogClock } from '../components/AnalogClock.tsx'
 import { CheckIcon, SpeakerIcon } from '../components/Art.tsx'
 import { Confetti } from '../components/Confetti.tsx'
@@ -53,6 +53,7 @@ export function PlayScreen({
   const [burst, setBurst] = useState(0)
   const [shake, setShake] = useState(false)
   const advanceTimer = useRef(0)
+  const advanceGen = useRef(0)
   const finishedRef = useRef(false)
   const starsRef = useRef(0)
   const correctRef = useRef(0)
@@ -62,10 +63,18 @@ export function PlayScreen({
   const interactive = (mode === 'hear' || mode === 'd2a') && (phase === 'answer' || phase === 'wrong' || phase === 'hint')
   const step = levelStep(level)
 
-  useEffect(() => () => window.clearTimeout(advanceTimer.current), [])
+  useEffect(() => () => {
+    advanceGen.current += 1
+    window.clearTimeout(advanceTimer.current)
+  }, [])
+
+  function cancelAdvance() {
+    advanceGen.current += 1
+    window.clearTimeout(advanceTimer.current)
+  }
 
   function resetBoard() {
-    window.clearTimeout(advanceTimer.current)
+    cancelAdvance()
     finishedRef.current = false
     setClock(startClock())
     setDigital({ hour: 12, minute: 0 })
@@ -88,7 +97,7 @@ export function PlayScreen({
   }
 
   function goNext() {
-    window.clearTimeout(advanceTimer.current)
+    cancelAdvance()
     playTap()
     if (index + 1 >= tasks.length) {
       onRoundDone({ stars: starsRef.current, correct: correctRef.current })
@@ -100,9 +109,16 @@ export function PlayScreen({
     speakParts(taskParts(mode, level, tasks[nextIndex].target), settings)
   }
 
-  function scheduleAdvance(delay: number) {
+  function advanceAfterSpeech(spoken: Promise<SpeakStatus>) {
+    const gen = ++advanceGen.current
     window.clearTimeout(advanceTimer.current)
-    advanceTimer.current = window.setTimeout(goNext, delay)
+    void spoken.then((status) => {
+      if (gen !== advanceGen.current || status === 'cancelled') return
+      advanceTimer.current = window.setTimeout(() => {
+        if (gen !== advanceGen.current) return
+        goNext()
+      }, AFTER_SPEECH_PAUSE_MS)
+    })
   }
 
   function onCheck() {
@@ -131,8 +147,7 @@ export function PlayScreen({
       finish(true, attempt)
       setBurst((value) => value + 1)
       playSuccess()
-      speakParts(praiseParts(level, task.target), settings)
-      scheduleAdvance(1800)
+      advanceAfterSpeech(speakParts(praiseParts(level, task.target), settings))
       return
     }
 
@@ -152,8 +167,7 @@ export function PlayScreen({
       }
       if (mode === 'a2d') setDigital({ hour: task.target.hour, minute: task.target.minute })
       finish(false, nextAttempt)
-      speakParts(revealParts(level, task.target), settings)
-      scheduleAdvance(2800)
+      advanceAfterSpeech(speakParts(revealParts(level, task.target), settings))
       return
     }
 
@@ -171,8 +185,8 @@ export function PlayScreen({
 
   function replay() {
     if (phase === 'hint') speakParts(hintParts(level, task.target), settings)
-    else if (phase === 'reveal') speakParts(revealParts(level, task.target), settings)
-    else if (phase === 'correct') speakParts(praiseParts(level, task.target), settings)
+    else if (phase === 'reveal') advanceAfterSpeech(speakParts(revealParts(level, task.target), settings))
+    else if (phase === 'correct') advanceAfterSpeech(speakParts(praiseParts(level, task.target), settings))
     else speakParts(helpParts(mode, level, task.target), settings)
   }
 

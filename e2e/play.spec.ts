@@ -51,3 +51,20 @@ test('funktioniert offline nach dem ersten Laden', async ({ page, context }) => 
   const serious = errors.filter((message) => !/audio device/i.test(message))
   expect(serious).toEqual([])
 })
+
+test('nach einer richtigen Antwort wartet die App die ganze Ansage ab', async ({ page }) => {
+  await boot(page)
+  await page.getByTestId('mode-hear').click()
+  const task = page.getByTestId('task')
+  await expect(task).toBeVisible()
+  const hour = Number(await task.getAttribute('data-target-hour'))
+  const minute = Number(await task.getAttribute('data-target-minute'))
+  await setAnalog(page, hour, minute)
+  await page.getByTestId('check').click()
+  await expect(page.getByTestId('next')).toBeVisible()
+  // The old 1.8 s timer cut off "Super! Es ist …". The next board must not appear yet.
+  await page.waitForTimeout(2000)
+  await expect(task).toHaveAttribute('data-phase', 'correct')
+  await expect(task).toHaveAttribute('data-target-hour', String(hour))
+  await expect(task).toHaveAttribute('data-target-minute', String(minute))
+})
