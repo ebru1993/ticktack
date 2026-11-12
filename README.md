@@ -2,7 +2,7 @@
 
 TickTack hilft Kindern, analoge und digitale Uhrzeiten zu lesen. Die Oberfläche ist auf Deutsch (Schweizer Schreibung mit ss), gross und für das iPad gemacht. Alles läuft im Browser: keine Anmeldung, keine Werbung, keine Anfragen an fremde Server.
 
-Zwei Profile «Kind 1» und «Kind 2» sind vorausgewählt. Unter **Eltern** kannst du die Namen ändern. Fortschritt, Sterne und Sticker liegen pro Kind im `localStorage` auf dem Gerät.
+Zwei Profile «Kind 1» und «Kind 2» sind vorausgewählt, jedes mit einem Tier-Avatar. Unter **Eltern** oder auf dem Profilbildschirm kannst du Namen und Avatar ändern. Fortschritt, Sterne und Sticker liegen pro Kind im `localStorage` auf dem Gerät. Die Ansagen sind fest aufgenommen und funktionieren offline.
 
 ## Spielen
 
@@ -20,7 +20,7 @@ Zwei Profile «Kind 1» und «Kind 2» sind vorausgewählt. Unter **Eltern** kan
 
 Eine Runde hat fünf Aufgaben. Der erste Versuch gibt zwei Sterne, der zweite einen. Danach gibt es einen Sticker. Acht von zehn richtigen Aufgaben im aktuellen Level öffnen das nächste.
 
-Die Zeiten klingen umgangssprachlich: `drei Uhr`, `halb vier` (3:30), `Viertel nach drei`, `zehn vor halb vier` (3:20), `fünf nach halb vier` (3:35). Im Level 24-Stunden-Zeit kommt dazu zum Beispiel `sechzehn Uhr fünfunddreissig`, und die Analoguhr zeigt 4:35 mit Sonne oder Mond.
+Die Zeiten klingen umgangssprachlich: `drei Uhr`, `halb vier` (3:30), `Viertel nach drei`, `zwanzig nach drei` (3:20), `fünfundzwanzig vor vier` (3:35), bei ungeraden Minuten `vierundzwanzig Minuten nach zwei` (2:24). Im Level 24-Stunden-Zeit kommt dazu zum Beispiel `sechzehn Uhr fünfunddreissig`, und die Analoguhr zeigt 4:35 mit Sonne oder Mond.
 
 Der Minutenzeiger zieht den Stundenzeiger mit, wie bei einer echten Uhr. Unter **Eltern** lassen sich die Zeiger auch getrennt drehen.
 

@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks'
 import { playTap, speak, unlockAudio } from '../audio.ts'
 import {
   AlbumIcon,
+  ANIMALS,
   Avatar,
   EarIcon,
   EyeIcon,
@@ -71,7 +72,7 @@ export function Welcome({ onStart }: { onStart: () => void }) {
 }
 
 export function Profiles({ onChoose, onParent }: { onChoose: (id: string) => void; onParent: () => void }) {
-  const { profiles, addProfile, renameProfile } = useStore()
+  const { profiles, addProfile, renameProfile, setAvatar } = useStore()
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
 
@@ -126,7 +127,7 @@ export function Profiles({ onChoose, onParent }: { onChoose: (id: string) => voi
       {editing && (
         <div className="modal">
           <form
-            className="card rename"
+            className="card rename animal-rename"
             onSubmit={(event) => {
               event.preventDefault()
               renameProfile(editing, draft)
@@ -137,6 +138,26 @@ export function Profiles({ onChoose, onParent }: { onChoose: (id: string) => voi
               Name
               <input value={draft} maxLength={16} onInput={(event) => setDraft(event.currentTarget.value)} />
             </label>
+            <p className="eyebrow">Tier wählen</p>
+            <div className="animal-grid" role="listbox" aria-label="Tier">
+              {ANIMALS.map((animal) => {
+                const current = profiles.find((profile) => profile.id === editing)
+                const selected = current?.avatar === animal.id
+                return (
+                  <button
+                    key={animal.id}
+                    type="button"
+                    className={`animal-pick${selected ? ' is-on' : ''}`}
+                    aria-label={animal.name}
+                    aria-pressed={selected}
+                    onClick={() => setAvatar(editing, animal.id)}
+                  >
+                    <Avatar id={animal.id} size={72} />
+                    <span>{animal.name}</span>
+                  </button>
+                )
+              })}
+            </div>
             <button type="submit" className="btn btn-green">
               Fertig
             </button>

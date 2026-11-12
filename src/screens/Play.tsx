@@ -1,17 +1,25 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { hush, playSuccess, playTap, playTryAgain, speak } from '../audio.ts'
+import { hush, playSuccess, playTap, playTryAgain, speak, speakParts } from '../audio.ts'
 import { AnalogClock } from '../components/AnalogClock.tsx'
 import { CheckIcon, SpeakerIcon } from '../components/Art.tsx'
 import { Confetti } from '../components/Confetti.tsx'
 import { DigitalClock } from '../components/DigitalClock.tsx'
 import { checkAnalog, checkDigital, type ClockValue } from '../logic/clockMath.ts'
 import { levelStep, type LevelId, type Mode, type Task } from '../logic/levels.ts'
-import { helpSpeech, taskSpeech } from '../logic/phrases.ts'
-import { starsForAttempt } from '../logic/progress.ts'
-import { spokenTime } from '../logic/timeWords.ts'
+import {
+  FIXED_SPEECH,
+  helpParts,
+  hintParts,
+  praiseParts,
+  revealParts,
+  retrySpeech,
+  taskParts,
+  timeParts,
+} from '../logic/phrases.ts'
+import { MAX_ATTEMPTS, REVEAL_AFTER_FAILS, starsForAttempt } from '../logic/progress.ts'
 import { useStore } from '../store.tsx'
 
-type Phase = 'answer' | 'wrong' | 'correct' | 'reveal'
+type Phase = 'answer' | 'wrong' | 'hint' | 'correct' | 'reveal'
 
 const startClock = (): ClockValue => ({ hour: 12, minute: 0, hourAngle: null })
 
@@ -33,7 +41,8 @@ export function PlayScreen({
   const { active } = useStore()
   const settings = active.settings
   const [index, setIndex] = useState(0)
-  const [attempt, setAttempt] = useState<1 | 2>(1)
+  const [attempt, setAttempt] = useState(1)
+  const [fails, setFails] = useState(0)
   const [phase, setPhase] = useState<Phase>('answer')
   const [clock, setClock] = useState<ClockValue>(startClock)
   const [digital, setDigital] = useState({ hour: 12, minute: 0 })
@@ -41,21 +50,23 @@ export function PlayScreen({
   const [misses, setMisses] = useState<number[]>([])
   const [wrong, setWrong] = useState<{ hour: boolean; minute: boolean } | null>(null)
   const [showGhost, setShowGhost] = useState(false)
-  const [stars, setStars] = useState(0)
-  const [correctN, setCorrectN] = useState(0)
   const [burst, setBurst] = useState(0)
   const [shake, setShake] = useState(false)
-  const ghostTimer = useRef(0)
+  const advanceTimer = useRef(0)
+  const finishedRef = useRef(false)
+  const starsRef = useRef(0)
+  const correctRef = useRef(0)
   const task = tasks[index]
   const use24 = level === 6
   const geared = !settings.independentHands
-  const interactive = (mode === 'hear' || mode === 'd2a') && (phase === 'answer' || phase === 'wrong')
+  const interactive = (mode === 'hear' || mode === 'd2a') && (phase === 'answer' || phase === 'wrong' || phase === 'hint')
   const step = levelStep(level)
 
-  useEffect(() => () => window.clearTimeout(ghostTimer.current), [])
+  useEffect(() => () => window.clearTimeout(advanceTimer.current), [])
 
   function resetBoard() {
-    window.clearTimeout(ghostTimer.current)
+    window.clearTimeout(advanceTimer.current)
+    finishedRef.current = false
     setClock(startClock())
     setDigital({ hour: 12, minute: 0 })
     setSelected(null)
@@ -63,14 +74,35 @@ export function PlayScreen({
     setWrong(null)
     setShowGhost(false)
     setAttempt(1)
+    setFails(0)
     setPhase('answer')
   }
 
-  function finish(correct: boolean) {
-    const earned = correct ? starsForAttempt(attempt) : 0
+  function finish(correct: boolean, usedAttempt: number) {
+    if (finishedRef.current) return
+    finishedRef.current = true
+    const earned = correct ? starsForAttempt(usedAttempt) : 0
     onFinishedTask(correct, earned)
-    setStars((value) => value + earned)
-    if (correct) setCorrectN((value) => value + 1)
+    starsRef.current += earned
+    if (correct) correctRef.current += 1
+  }
+
+  function goNext() {
+    window.clearTimeout(advanceTimer.current)
+    playTap()
+    if (index + 1 >= tasks.length) {
+      onRoundDone({ stars: starsRef.current, correct: correctRef.current })
+      return
+    }
+    const nextIndex = index + 1
+    setIndex(nextIndex)
+    resetBoard()
+    speakParts(taskParts(mode, level, tasks[nextIndex].target), settings)
+  }
+
+  function scheduleAdvance(delay: number) {
+    window.clearTimeout(advanceTimer.current)
+    advanceTimer.current = window.setTimeout(goNext, delay)
   }
 
   function onCheck() {
@@ -80,7 +112,7 @@ export function PlayScreen({
       if (selected === null) {
         setShake(true)
         window.setTimeout(() => setShake(false), 450)
-        speak('Tippe auf eine Antwort.', settings)
+        speak(FIXED_SPEECH.pickAnswer, settings)
         return
       }
       const choice = task.options[selected]
@@ -96,50 +128,52 @@ export function PlayScreen({
       setPhase('correct')
       setWrong(null)
       setShowGhost(false)
-      finish(true)
+      finish(true, attempt)
       setBurst((value) => value + 1)
       playSuccess()
-      speak(`Super! ${spokenTime(task.target.hour, task.target.minute, level)}`, settings)
+      speakParts(praiseParts(level, task.target), settings)
+      scheduleAdvance(1800)
       return
     }
 
+    const nextFails = fails + 1
+    const nextAttempt = Math.min(MAX_ATTEMPTS, attempt + 1)
+    setFails(nextFails)
+    setAttempt(nextAttempt)
     setWrong({ hour: !result.hourOk, minute: !result.minuteOk })
     if (mode === 'read' && selected !== null) setMisses((list) => [...list, selected])
     playTryAgain()
-    if (attempt === 1) {
-      setAttempt(2)
-      setPhase('wrong')
+
+    if (nextFails >= MAX_ATTEMPTS) {
+      setPhase('reveal')
       setShowGhost(true)
-      window.clearTimeout(ghostTimer.current)
-      ghostTimer.current = window.setTimeout(() => setShowGhost(false), 2300)
-      speak('Fast geschafft. Schau nochmal und versuch es noch einmal.', settings)
+      if (mode === 'hear' || mode === 'd2a') {
+        setClock({ hour: task.target.hour, minute: task.target.minute, hourAngle: null })
+      }
+      if (mode === 'a2d') setDigital({ hour: task.target.hour, minute: task.target.minute })
+      finish(false, nextAttempt)
+      speakParts(revealParts(level, task.target), settings)
+      scheduleAdvance(2800)
       return
     }
 
-    setPhase('reveal')
-    setShowGhost(true)
-    if (mode === 'hear' || mode === 'd2a') {
-      setClock({ hour: task.target.hour, minute: task.target.minute, hourAngle: null })
-    }
-    if (mode === 'a2d') setDigital({ hour: task.target.hour, minute: task.target.minute })
-    finish(false)
-    speak(`So ist es richtig. ${spokenTime(task.target.hour, task.target.minute, level)}`, settings)
-  }
-
-  function onNext() {
-    playTap()
-    if (index + 1 >= tasks.length) {
-      onRoundDone({ stars, correct: correctN })
+    if (nextFails >= REVEAL_AFTER_FAILS) {
+      setPhase('hint')
+      setShowGhost(true)
+      speakParts(hintParts(level, task.target), settings)
       return
     }
-    const nextIndex = index + 1
-    setIndex(nextIndex)
-    resetBoard()
-    speak(taskSpeech(mode, level, tasks[nextIndex].target), settings)
+
+    setPhase('wrong')
+    setShowGhost(false)
+    speak(retrySpeech(result.hourOk, result.minuteOk), settings)
   }
 
   function replay() {
-    speak(helpSpeech(mode, level, task.target), settings)
+    if (phase === 'hint') speakParts(hintParts(level, task.target), settings)
+    else if (phase === 'reveal') speakParts(revealParts(level, task.target), settings)
+    else if (phase === 'correct') speakParts(praiseParts(level, task.target), settings)
+    else speakParts(helpParts(mode, level, task.target), settings)
   }
 
   const questionClock = mode === 'read' || mode === 'a2d'
@@ -155,6 +189,8 @@ export function PlayScreen({
       data-target-minute={task.target.minute}
       data-phase={phase}
       data-mode={mode}
+      data-attempt={attempt}
+      data-fails={fails}
     >
       <Confetti burst={burst} />
       <header className="topbar">
@@ -174,7 +210,8 @@ export function PlayScreen({
       </header>
 
       {phase === 'correct' && <p className="banner good">Super!</p>}
-      {phase === 'wrong' && <p className="banner soft">Schau nochmal</p>}
+      {phase === 'wrong' && <p className="banner soft">Versuch es noch einmal</p>}
+      {phase === 'hint' && <p className="banner soft">Schau, so sieht es aus</p>}
       {phase === 'reveal' && <p className="banner soft">So ist es richtig</p>}
 
       <div className="play-grid">
@@ -235,7 +272,7 @@ export function PlayScreen({
               hour={digital.hour}
               minute={digital.minute}
               use24={use24}
-              interactive={phase === 'answer' || phase === 'wrong'}
+              interactive={phase === 'answer' || phase === 'wrong' || phase === 'hint'}
               minuteStep={step}
               onChange={setDigital}
               wrongHour={!!wrong?.hour}
@@ -248,19 +285,22 @@ export function PlayScreen({
               {task.options.map((option, optionIndex) => {
                 const picked = selected === optionIndex
                 const bad = misses.includes(optionIndex)
-                const good = phase === 'reveal' && option.hour === task.target.hour && option.minute === task.target.minute
+                const showCorrect =
+                  (phase === 'hint' || phase === 'reveal') &&
+                  option.hour === task.target.hour &&
+                  option.minute === task.target.minute
                 return (
                   <button
                     key={`${option.hour}-${option.minute}-${optionIndex}`}
                     type="button"
-                    className={`option${picked ? ' selected' : ''}${bad ? ' bad' : ''}${good ? ' good' : ''}`}
+                    className={`option${picked ? ' selected' : ''}${bad ? ' bad' : ''}${showCorrect ? ' good' : ''}`}
                     data-testid="option"
                     data-hour={option.hour}
                     data-minute={option.minute}
                     onClick={() => {
                       if (phase === 'correct' || phase === 'reveal') return
                       setSelected(optionIndex)
-                      speak(spokenTime(option.hour, option.minute, level), settings)
+                      speakParts(['Es ist', ...timeParts(option.hour, option.minute, level)], settings)
                     }}
                   >
                     <DigitalClock
@@ -279,7 +319,7 @@ export function PlayScreen({
           )}
 
           {phase === 'correct' || phase === 'reveal' ? (
-            <button type="button" className="btn btn-green btn-block" data-testid="next" onClick={onNext}>
+            <button type="button" className="btn btn-green btn-block" data-testid="next" onClick={goNext}>
               Weiter
             </button>
           ) : (

@@ -2,14 +2,16 @@
  * German clock phrases for children (Hochdeutsch, Swiss spelling with ss).
  *
  * Colloquial rules, hour H and minute M:
- * - 0            → "ein Uhr" / "drei Uhr" / "zwölf Uhr"
- * - 1–14, 16–19  → "n nach H"          (5, 10 without the word Minuten)
- * - 15           → "Viertel nach H"
- * - 20–29        → "n vor halb H+1"    (3:20 = "zehn vor halb vier")
- * - 30           → "halb H+1"          (3:30 = "halb vier")
- * - 31–39        → "n nach halb H+1"   (3:35 = "fünf nach halb vier")
- * - 40–44, 46–59 → "n vor H+1"         (3:40 = "zwanzig vor vier")
- * - 45           → "Viertel vor H+1"
+ * - 0              → "ein Uhr" / "drei Uhr" / "zwölf Uhr"
+ * - 15             → "Viertel nach H"
+ * - 30             → "halb H+1"          (3:30 = "halb vier")
+ * - 45             → "Viertel vor H+1"
+ * - 1–29 (not 15)  → "n nach H"          (3:20 = "zwanzig nach drei")
+ * - 31–59 (not 45) → "n vor H+1"         (3:35 = "fünfundzwanzig vor vier")
+ *
+ * Multiples of 5 omit the word Minuten: "fünf nach drei", "zwanzig nach eins".
+ * Other minutes use it: "vierundzwanzig Minuten nach zwei".
+ * Never "vor halb" or "nach halb".
  *
  * Official 24-hour form: "sechzehn Uhr fünfunddreissig".
  * "colloquial-period" appends the time of day, e.g. "am Nachmittag".
@@ -101,9 +103,7 @@ function colloquial(hour: number, minute: number): string {
   if (minute === 15) return `Viertel nach ${current}`
   if (minute === 30) return `halb ${next}`
   if (minute === 45) return `Viertel vor ${next}`
-  if (minute < 20) return `${fragment(minute)} nach ${current}`
-  if (minute < 30) return `${fragment(30 - minute)} vor halb ${next}`
-  if (minute < 40) return `${fragment(minute - 30)} nach halb ${next}`
+  if (minute < 30) return `${fragment(minute)} nach ${current}`
   return `${fragment(60 - minute)} vor ${next}`
 }
 
@@ -112,6 +112,15 @@ function official(hour: number, minute: number): string {
   if (minute === 0) return `${h} Uhr`
   const m = minute === 1 ? 'eins' : cardinal(minute)
   return `${h} Uhr ${m}`
+}
+
+/** Pieces for official 24-hour speech, so audio can play them in sequence. */
+export function officialParts(hour: number, minute: number): string[] {
+  assertTime(hour, minute)
+  const h = hour === 0 ? 'null' : hour === 1 ? 'ein' : cardinal(hour)
+  if (minute === 0) return [h, 'Uhr']
+  const m = minute === 1 ? 'eins' : cardinal(minute)
+  return [h, 'Uhr', m]
 }
 
 export function timeToGermanWords(hour: number, minute: number, mode: GermanTimeMode): string {

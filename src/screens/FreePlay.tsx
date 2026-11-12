@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import { playTap, speak } from '../audio.ts'
+import { playTap, speakParts } from '../audio.ts'
 import { AnalogClock } from '../components/AnalogClock.tsx'
 import { BackIcon, SpeakerIcon } from '../components/Art.tsx'
 import { DigitalClock } from '../components/DigitalClock.tsx'
@@ -13,7 +13,7 @@ export function FreePlay({ onExit }: { onExit: () => void }) {
   const settings = active.settings
 
   function say(hour: number, minute: number) {
-    speak(spokenTime(hour, minute, 1), settings)
+    speakParts(['Es ist', spokenTime(hour, minute, 1)], settings)
   }
 
   return (

@@ -154,6 +154,19 @@ describe('Zufallszeiten und Aufgaben', () => {
     const round = makeRound(1, 'hear', mulberry32(1))
     expect(round).toHaveLength(5)
     expect(round.every((task) => task.target.minute === 0)).toBe(true)
+    const keys = new Set(round.map((task) => `${task.target.hour}:${task.target.minute}`))
+    expect(keys.size).toBe(5)
+  })
+
+  it('vermeidet Wiederholungen in einer Runde und gegenüber der vorherigen', () => {
+    const rng = mulberry32(99)
+    const first = makeRound(4, 'hear', rng)
+    const firstKeys = first.map((task) => `${task.target.hour}:${task.target.minute}`)
+    expect(new Set(firstKeys).size).toBe(5)
+    const second = makeRound(4, 'hear', rng, first.map((task) => task.target))
+    const secondKeys = second.map((task) => `${task.target.hour}:${task.target.minute}`)
+    expect(new Set(secondKeys).size).toBe(5)
+    expect(secondKeys.some((key) => firstKeys.includes(key))).toBe(false)
   })
 })
 
@@ -169,7 +182,7 @@ function profile(over: Partial<Profile> = {}): Profile {
     stats: {},
     settings: {
       minuteMarkers: true,
-      speechRate: 0.9,
+      speechRate: 1,
       voiceURI: null,
       independentHands: false,
     },
@@ -203,19 +216,25 @@ describe('Fortschritt', () => {
     expect(current.unlockedLevel).toBe(3)
   })
 
-  it('vergibt zwei Sterne beim ersten Versuch', () => {
+  it('vergibt zwei Sterne beim ersten Versuch und danach weniger', () => {
     expect(starsForAttempt(1)).toBe(2)
     expect(starsForAttempt(2)).toBe(1)
+    expect(starsForAttempt(3)).toBe(1)
+    expect(starsForAttempt(4)).toBe(1)
+    expect(starsForAttempt(5)).toBe(0)
   })
 })
 
 describe('Ansagen', () => {
   it('sagt die Aufgabe passend zum Modus', () => {
-    expect(taskSpeech('hear', 1, { hour: 3, minute: 0 })).toBe('Stell die Zeiger auf drei Uhr.')
+    expect(taskSpeech('hear', 1, { hour: 3, minute: 0 })).toBe('Hör genau zu. Stell die Zeiger auf drei Uhr.')
     expect(taskSpeech('hear', 6, { hour: 16, minute: 35 })).toContain('sechzehn Uhr fünfunddreissig')
-    expect(taskSpeech('read', 1, { hour: 2, minute: 0 })).toContain('Tippe')
-    expect(taskSpeech('d2a', 3, { hour: 4, minute: 15 })).toContain('Digitaluhr')
-    expect(helpSpeech('d2a', 1, { hour: 4, minute: 0 })).toBe('vier Uhr')
+    expect(taskSpeech('read', 1, { hour: 2, minute: 0 })).toContain('Tippe auf die richtige Antwort')
+    expect(taskSpeech('d2a', 3, { hour: 4, minute: 15 })).toBe(
+      'Schau auf die Digitaluhr und stell die Zeiger auf dieselbe Zeit.',
+    )
+    expect(helpSpeech('d2a', 1, { hour: 4, minute: 0 })).toBe('Stell die Zeiger auf vier Uhr.')
+    expect(taskSpeech('a2d', 1, { hour: 4, minute: 0 })).toContain('Analoguhr')
     expect(taskSpeech('a2d', 6, { hour: 18, minute: 0 })).toContain('Mond')
   })
 

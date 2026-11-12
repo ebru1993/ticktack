@@ -1,10 +1,10 @@
 import { Component } from 'preact'
 import type { ComponentChildren } from 'preact'
 import { useRef, useState } from 'preact/hooks'
-import { hush, playFanfare, speak } from './audio.ts'
+import { hush, playFanfare, speak, speakParts } from './audio.ts'
 import { Confetti } from './components/Confetti.tsx'
-import { makeRound, type LevelId, type Mode, type Task } from './logic/levels.ts'
-import { taskSpeech } from './logic/phrases.ts'
+import { makeRound, type LevelId, type Mode, type Task, type Time } from './logic/levels.ts'
+import { FIXED_SPEECH, taskParts } from './logic/phrases.ts'
 import { awardStars, recordResult } from './logic/progress.ts'
 import { stickerForIndex } from './logic/stickers.ts'
 import { FreePlay } from './screens/FreePlay.tsx'
@@ -59,6 +59,7 @@ function Shell() {
   const [burst, setBurst] = useState(0)
   const unlockedRef = useRef(false)
   const parentBack = useRef<'home' | 'profiles'>('home')
+  const recentTimes = useRef<Time[]>([])
 
   function home() {
     hush()
@@ -67,9 +68,10 @@ function Shell() {
 
   function startMode(mode: PlayMode, level = active.selectedLevel) {
     unlockedRef.current = false
-    const tasks = makeRound(level, mode)
+    const tasks = makeRound(level, mode, Math.random, recentTimes.current)
+    recentTimes.current = tasks.map((task) => task.target)
     setRoute({ name: 'play', mode, level, tasks })
-    speak(taskSpeech(mode, level, tasks[0].target), active.settings)
+    speakParts(taskParts(mode, level, tasks[0].target), active.settings)
   }
 
   return (
@@ -98,7 +100,7 @@ function Shell() {
         <Home
           onMode={startMode}
           onFree={() => {
-            speak('Spiel mit der Uhr.', active.settings)
+            speak(FIXED_SPEECH.freeIntro, active.settings)
             setRoute({ name: 'free' })
           }}
           onAlbum={() => setRoute({ name: 'album' })}
@@ -147,12 +149,7 @@ function Shell() {
               unlocked,
             })
             playFanfare()
-            speak(
-              unlocked
-                ? 'Runde geschafft! Ein neuer Sticker. Neues Level ist offen!'
-                : 'Runde geschafft! Ein neuer Sticker für dich.',
-              active.settings,
-            )
+            speak(unlocked ? FIXED_SPEECH.roundDoneUnlock : FIXED_SPEECH.roundDone, active.settings)
           }}
         />
       )}

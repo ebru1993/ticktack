@@ -66,5 +66,7 @@ export async function solveTask(page: Page, mode: string): Promise<void> {
     await page.locator(`[data-testid="option"][data-hour="${hour}"][data-minute="${minute}"]`).click()
   }
   await page.getByTestId('check').click()
-  await page.getByTestId('next').click()
+  const next = page.getByTestId('next')
+  await next.waitFor({ state: 'visible', timeout: 4000 })
+  if (await next.isVisible()) await next.click()
 }

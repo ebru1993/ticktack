@@ -2,7 +2,7 @@ import { expect, test, devices, type Page } from '@playwright/test'
 import { mkdir } from 'node:fs/promises'
 import { boot, setAnalog, solveTask } from './helpers.ts'
 
-const OUT = '/opt/cursor/artifacts'
+const OUT = '/workspace/ticktack-shots'
 
 async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: false })

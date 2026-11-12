@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
-import { germanVoices, playTap, speak } from '../audio.ts'
-import { BackIcon } from '../components/Art.tsx'
+import { playTap, speak } from '../audio.ts'
+import { ANIMALS, Avatar, BackIcon } from '../components/Art.tsx'
 import { LEVELS, type LevelId } from '../logic/levels.ts'
+import { FIXED_SPEECH } from '../logic/phrases.ts'
 import { useStore } from '../store.tsx'
 
 const QUESTIONS: [string, number][] = [
@@ -16,13 +17,12 @@ const QUESTIONS: [string, number][] = [
 ]
 
 export function ParentScreen({ onExit }: { onExit: () => void }) {
-  const { active, profiles, updateActive, renameProfile, deleteProfile, addProfile } = useStore()
+  const { active, profiles, updateActive, renameProfile, setAvatar, deleteProfile, addProfile } = useStore()
   const [held, setHeld] = useState(0)
   const [stage, setStage] = useState<'hold' | 'math' | 'panel'>('hold')
   const [question, setQuestion] = useState(QUESTIONS[0])
   const [shake, setShake] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const [draft, setDraft] = useState(active.name)
   const frame = useRef(0)
   const started = useRef(0)
@@ -31,15 +31,7 @@ export function ParentScreen({ onExit }: { onExit: () => void }) {
     setDraft(active.name)
   }, [active.id, active.name])
 
-  useEffect(() => {
-    const load = () => setVoices(germanVoices())
-    load()
-    window.speechSynthesis?.addEventListener?.('voiceschanged', load)
-    return () => {
-      cancelAnimationFrame(frame.current)
-      window.speechSynthesis?.removeEventListener?.('voiceschanged', load)
-    }
-  }, [])
+  useEffect(() => () => cancelAnimationFrame(frame.current), [])
 
   function pointerDown(event: PointerEvent) {
     if (stage !== 'hold') return
@@ -177,11 +169,12 @@ export function ParentScreen({ onExit }: { onExit: () => void }) {
 
         <article className="card">
           <h2>Stimme</h2>
+          <p>Die Ansagen sind fest aufgenommen und funktionieren auch ohne Internet.</p>
           <div className="rate-row">
             {[
-              ['Langsam', 0.75],
-              ['Normal', 0.9],
-              ['Schnell', 1.1],
+              ['Langsam', 0.85],
+              ['Normal', 1],
+              ['Schnell', 1.15],
             ].map(([label, rate]) => (
               <button
                 key={label}
@@ -198,30 +191,10 @@ export function ParentScreen({ onExit }: { onExit: () => void }) {
               </button>
             ))}
           </div>
-          <label className="field">
-            Stimme
-            <select
-              value={active.settings.voiceURI ?? ''}
-              onChange={(event) =>
-                updateActive((profile) => ({
-                  ...profile,
-                  settings: { ...profile.settings, voiceURI: event.currentTarget.value || null },
-                }))
-              }
-            >
-              <option value="">Automatisch (Deutsch)</option>
-              {voices.map((voice) => (
-                <option key={voice.voiceURI} value={voice.voiceURI}>
-                  {voice.name} ({voice.lang})
-                </option>
-              ))}
-            </select>
-          </label>
-          {voices.length === 0 && <p>Keine Stimme gefunden. Das iPad nimmt dann die Standardstimme.</p>}
           <button
             type="button"
             className="btn btn-blue"
-            onClick={() => speak('Hallo, ich bin TickTack. Lass uns die Uhr lernen.', active.settings)}
+            onClick={() => speak(FIXED_SPEECH.hello, active.settings)}
           >
             Stimme testen
           </button>
@@ -240,6 +213,22 @@ export function ParentScreen({ onExit }: { onExit: () => void }) {
           <button type="button" className="btn btn-white" onClick={() => renameProfile(active.id, draft)}>
             Name speichern
           </button>
+          <p className="eyebrow">Tier</p>
+          <div className="animal-grid compact" role="listbox" aria-label="Tier">
+            {ANIMALS.map((animal) => (
+              <button
+                key={animal.id}
+                type="button"
+                className={`animal-pick${active.avatar === animal.id ? ' is-on' : ''}`}
+                aria-label={animal.name}
+                aria-pressed={active.avatar === animal.id}
+                onClick={() => setAvatar(active.id, animal.id)}
+              >
+                <Avatar id={animal.id} size={64} />
+                <span>{animal.name}</span>
+              </button>
+            ))}
+          </div>
           <div className="profile-edit-list">
             {profiles.map((profile) => (
               <span key={profile.id} className="chip">

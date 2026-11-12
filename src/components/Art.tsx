@@ -174,31 +174,7 @@ export function SunMoon({ hour }: { hour: number }) {
   )
 }
 
-const HAIR = ['#5b3a29', '#2a211c', '#1a1a1a', '#c47b2b', '#3b2414', '#111', '#4a3428', '#6b3f2a']
-const SHIRT = ['#3dbe7a', '#b07cff', '#4aa3ff', '#ff7a59', '#2ec4b6', '#ffd166', '#ef476f', '#118ab2']
-const SKIN = ['#ffd1b8', '#f3c6a8', '#e8b896', '#ffd8c2', '#d9a57a', '#c68642', '#8d5524', '#ffcba4']
-const BACK = ['#ffe08a', '#ffd0e8', '#c8f0ff', '#ffe1c4', '#fff3b0', '#d6f5d6', '#fde2e4', '#e0f2ff']
-
-export function Avatar({ id, size = 120 }: { id: number; size?: number }) {
-  const i = ((id % 8) + 8) % 8
-  const long = i % 2 === 1
-  return (
-    <svg viewBox="0 0 120 120" width={size} height={size} className="avatar" aria-hidden="true">
-      <circle cx="60" cy="60" r="58" fill={BACK[i]} />
-      <circle cx="60" cy="78" r="28" fill={SHIRT[i]} />
-      {long ? (
-        <path d="M34 58c2-28 10-40 26-40s24 12 26 40c-8 10-16 14-26 14s-18-4-26-14z" fill={HAIR[i]} />
-      ) : (
-        <path d="M36 52c2-22 10-32 24-32s22 10 24 32c-8-8-16-10-24-10s-16 2-24 10z" fill={HAIR[i]} />
-      )}
-      <circle cx="60" cy="54" r="22" fill={SKIN[i]} />
-      {long && <path d="M40 46c2-14 8-20 20-20s18 6 20 20c-6-8-12-10-20-10s-14 2-20 10z" fill={HAIR[i]} />}
-      <circle cx="52" cy="50" r="2.4" fill="#1c2742" />
-      <circle cx="68" cy="50" r="2.4" fill="#1c2742" />
-      <path d="M54 58q6 6 12 0" fill="none" stroke="#1c2742" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-}
+export { Avatar, ANIMALS, animalOf, animalCount } from './Animals.tsx'
 
 function Motif({ id }: { id: string }) {
   switch (id) {

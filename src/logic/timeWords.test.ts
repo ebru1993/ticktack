@@ -22,26 +22,26 @@ const HOUR3 = [
   'siebzehn Minuten nach drei',
   'achtzehn Minuten nach drei',
   'neunzehn Minuten nach drei',
-  'zehn vor halb vier',
-  'neun Minuten vor halb vier',
-  'acht Minuten vor halb vier',
-  'sieben Minuten vor halb vier',
-  'sechs Minuten vor halb vier',
-  'fünf vor halb vier',
-  'vier Minuten vor halb vier',
-  'drei Minuten vor halb vier',
-  'zwei Minuten vor halb vier',
-  'eine Minute vor halb vier',
+  'zwanzig nach drei',
+  'einundzwanzig Minuten nach drei',
+  'zweiundzwanzig Minuten nach drei',
+  'dreiundzwanzig Minuten nach drei',
+  'vierundzwanzig Minuten nach drei',
+  'fünfundzwanzig nach drei',
+  'sechsundzwanzig Minuten nach drei',
+  'siebenundzwanzig Minuten nach drei',
+  'achtundzwanzig Minuten nach drei',
+  'neunundzwanzig Minuten nach drei',
   'halb vier',
-  'eine Minute nach halb vier',
-  'zwei Minuten nach halb vier',
-  'drei Minuten nach halb vier',
-  'vier Minuten nach halb vier',
-  'fünf nach halb vier',
-  'sechs Minuten nach halb vier',
-  'sieben Minuten nach halb vier',
-  'acht Minuten nach halb vier',
-  'neun Minuten nach halb vier',
+  'neunundzwanzig Minuten vor vier',
+  'achtundzwanzig Minuten vor vier',
+  'siebenundzwanzig Minuten vor vier',
+  'sechsundzwanzig Minuten vor vier',
+  'fünfundzwanzig vor vier',
+  'vierundzwanzig Minuten vor vier',
+  'dreiundzwanzig Minuten vor vier',
+  'zweiundzwanzig Minuten vor vier',
+  'einundzwanzig Minuten vor vier',
   'zwanzig vor vier',
   'neunzehn Minuten vor vier',
   'achtzehn Minuten vor vier',
@@ -141,10 +141,12 @@ describe('timeToGermanWords colloquial, jede Minute', () => {
     expect(timeToGermanWords(3, 15, 'colloquial')).toBe('Viertel nach drei')
     expect(timeToGermanWords(3, 45, 'colloquial')).toBe('Viertel vor vier')
     expect(timeToGermanWords(3, 5, 'colloquial')).toBe('fünf nach drei')
-    expect(timeToGermanWords(3, 20, 'colloquial')).toBe('zehn vor halb vier')
-    expect(timeToGermanWords(3, 35, 'colloquial')).toBe('fünf nach halb vier')
+    expect(timeToGermanWords(1, 20, 'colloquial')).toBe('zwanzig nach eins')
+    expect(timeToGermanWords(2, 24, 'colloquial')).toBe('vierundzwanzig Minuten nach zwei')
+    expect(timeToGermanWords(3, 20, 'colloquial')).toBe('zwanzig nach drei')
+    expect(timeToGermanWords(3, 35, 'colloquial')).toBe('fünfundzwanzig vor vier')
     expect(timeToGermanWords(16, 35, 'official')).toBe('sechzehn Uhr fünfunddreissig')
-    expect(timeToGermanWords(16, 35, 'colloquial-period')).toBe('fünf nach halb fünf am Nachmittag')
+    expect(timeToGermanWords(16, 35, 'colloquial-period')).toBe('fünfundzwanzig vor fünf am Nachmittag')
   })
 })
 
@@ -172,8 +174,8 @@ describe('Uhrzeiten über zwölf und Mitternacht', () => {
     [0, 15, 'Viertel nach zwölf'],
     [0, 30, 'halb eins'],
     [0, 45, 'Viertel vor eins'],
-    [0, 20, 'zehn vor halb eins'],
-    [0, 35, 'fünf nach halb eins'],
+    [0, 20, 'zwanzig nach zwölf'],
+    [0, 35, 'fünfundzwanzig vor eins'],
     [0, 40, 'zwanzig vor eins'],
     [0, 55, 'fünf vor eins'],
     [1, 0, 'ein Uhr'],
@@ -182,19 +184,19 @@ describe('Uhrzeiten über zwölf und Mitternacht', () => {
     [12, 0, 'zwölf Uhr'],
     [12, 1, 'eine Minute nach zwölf'],
     [12, 15, 'Viertel nach zwölf'],
-    [12, 20, 'zehn vor halb eins'],
+    [12, 20, 'zwanzig nach zwölf'],
     [12, 30, 'halb eins'],
-    [12, 35, 'fünf nach halb eins'],
+    [12, 35, 'fünfundzwanzig vor eins'],
     [12, 40, 'zwanzig vor eins'],
     [12, 45, 'Viertel vor eins'],
     [12, 59, 'eine Minute vor eins'],
     [11, 30, 'halb zwölf'],
-    [11, 20, 'zehn vor halb zwölf'],
+    [11, 20, 'zwanzig nach elf'],
     [11, 45, 'Viertel vor zwölf'],
     [15, 0, 'drei Uhr'],
     [15, 30, 'halb vier'],
-    [23, 20, 'zehn vor halb zwölf'],
-    [23, 35, 'fünf nach halb zwölf'],
+    [23, 20, 'zwanzig nach elf'],
+    [23, 35, 'fünfundzwanzig vor zwölf'],
     [23, 45, 'Viertel vor zwölf'],
     [23, 59, 'eine Minute vor zwölf'],
     [4, 40, 'zwanzig vor fünf'],
@@ -222,7 +224,7 @@ describe('Tageszeit', () => {
     expect(timeToGermanWords(8, 15, 'colloquial-period')).toBe('Viertel nach acht am Morgen')
     expect(timeToGermanWords(11, 0, 'colloquial-period')).toBe('elf Uhr am Vormittag')
     expect(timeToGermanWords(12, 0, 'colloquial-period')).toBe('zwölf Uhr am Mittag')
-    expect(timeToGermanWords(16, 35, 'colloquial-period')).toBe('fünf nach halb fünf am Nachmittag')
+    expect(timeToGermanWords(16, 35, 'colloquial-period')).toBe('fünfundzwanzig vor fünf am Nachmittag')
     expect(timeToGermanWords(18, 45, 'colloquial-period')).toBe('Viertel vor sieben am Abend')
     expect(timeToGermanWords(21, 0, 'colloquial-period')).toBe('neun Uhr am Abend')
     expect(timeToGermanWords(22, 30, 'colloquial-period')).toBe('halb elf in der Nacht')
@@ -257,8 +259,19 @@ describe('alle Modi, alle Minuten', () => {
 
   it('spricht Level 6 doppelt', () => {
     expect(spokenTime(16, 35, 6)).toBe(
-      'fünf nach halb fünf am Nachmittag. sechzehn Uhr fünfunddreissig.',
+      'fünfundzwanzig vor fünf am Nachmittag. sechzehn Uhr fünfunddreissig.',
     )
     expect(spokenTime(3, 0, 1)).toBe('drei Uhr')
+  })
+
+  it('sagt nie vor halb oder nach halb', () => {
+    for (let hour = 0; hour < 24; hour++) {
+      for (let minute = 0; minute < 60; minute++) {
+        const phrase = timeToGermanWords(hour, minute, 'colloquial')
+        expect(phrase.includes('vor halb') || phrase.includes('nach halb'), `${hour}:${minute} ${phrase}`).toBe(
+          false,
+        )
+      }
+    }
   })
 })

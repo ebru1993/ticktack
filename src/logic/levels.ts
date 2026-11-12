@@ -85,6 +85,25 @@ export function makeTask(level: LevelId, mode: Mode, rng: () => number = Math.ra
   return { target, options: shuffle(options, rng) }
 }
 
-export function makeRound(level: LevelId, mode: Mode, rng: () => number = Math.random): Task[] {
-  return Array.from({ length: 5 }, () => makeTask(level, mode, rng))
+export function timeKey(time: Time): string {
+  return `${time.hour}:${time.minute}`
+}
+
+export function makeRound(
+  level: LevelId,
+  mode: Mode,
+  rng: () => number = Math.random,
+  avoid: Time[] = [],
+): Task[] {
+  const used = new Set(avoid.map(timeKey))
+  const tasks: Task[] = []
+  for (let i = 0; i < 5; i++) {
+    let task = makeTask(level, mode, rng)
+    for (let guard = 0; guard < 80 && used.has(timeKey(task.target)); guard++) {
+      task = makeTask(level, mode, rng)
+    }
+    tasks.push(task)
+    used.add(timeKey(task.target))
+  }
+  return tasks
 }

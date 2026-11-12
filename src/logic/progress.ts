@@ -26,7 +26,7 @@ export type Profile = {
 
 export const DEFAULT_SETTINGS: Settings = {
   minuteMarkers: true,
-  speechRate: 0.9,
+  speechRate: 1,
   voiceURI: null,
   independentHands: false,
 }
@@ -79,6 +79,13 @@ export function awardStars(profile: Profile, stars: number): Profile {
   return { ...profile, stars: profile.stars + stars }
 }
 
-export function starsForAttempt(attempt: 1 | 2): number {
-  return attempt === 1 ? 2 : 1
+export const MAX_ATTEMPTS = 5
+/** Show the correct time only once this many attempts have already failed. */
+export const REVEAL_AFTER_FAILS = 4
+
+/** Two stars on the first try, one star until the solution is shown, none after that. */
+export function starsForAttempt(attempt: number): number {
+  if (attempt <= 1) return 2
+  if (attempt <= REVEAL_AFTER_FAILS) return 1
+  return 0
 }

@@ -2,6 +2,7 @@ import { createContext } from 'preact'
 import { useContext, useState } from 'preact/hooks'
 import type { ComponentChildren } from 'preact'
 import type { Profile } from './logic/progress.ts'
+import { animalCount } from './components/Animals.tsx'
 import { createProfile, loadSave, persist, type SaveData } from './storage.ts'
 
 type Store = {
@@ -12,6 +13,7 @@ type Store = {
   updateProfile: (id: string, fn: (profile: Profile) => Profile) => void
   addProfile: (name?: string) => Profile
   renameProfile: (id: string, name: string) => void
+  setAvatar: (id: string, avatar: number) => void
   deleteProfile: (id: string) => void
 }
 
@@ -50,7 +52,17 @@ export function StoreProvider({ children }: { children: ComponentChildren }) {
     },
     updateProfile,
     addProfile(name = 'Kind') {
-      const profile = createProfile(name, data.profiles.length)
+      const used = new Set(data.profiles.map((profile) => profile.avatar))
+      let avatar = 0
+      const total = animalCount()
+      for (let i = 0; i < total; i++) {
+        if (!used.has(i)) {
+          avatar = i
+          break
+        }
+        avatar = data.profiles.length % total
+      }
+      const profile = createProfile(name, avatar)
       commit({ profiles: [...data.profiles, profile], activeId: data.activeId })
       return profile
     },
@@ -58,6 +70,11 @@ export function StoreProvider({ children }: { children: ComponentChildren }) {
       const clean = name.trim().slice(0, 16)
       if (!clean) return
       updateProfile(id, (profile) => ({ ...profile, name: clean }))
+    },
+    setAvatar(id, avatar) {
+      const total = animalCount()
+      const next = ((avatar % total) + total) % total
+      updateProfile(id, (profile) => ({ ...profile, avatar: next }))
     },
     deleteProfile(id) {
       setData((current) => {

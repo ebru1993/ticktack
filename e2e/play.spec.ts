@@ -38,13 +38,13 @@ test('funktioniert offline nach dem ersten Laden', async ({ page, context }) => 
   await page.goto('./')
   await page.getByTestId('start').waitFor()
   await page.waitForFunction(async () => {
-    const reg = await navigator.serviceWorker?.getRegistration()
-    return Boolean(reg?.active)
+    const ready = await navigator.serviceWorker?.ready
+    return Boolean(ready?.active && navigator.serviceWorker.controller)
   })
-  await page.reload()
+  await page.reload({ waitUntil: 'domcontentloaded' })
   await page.getByTestId('start').waitFor()
   await context.setOffline(true)
-  await page.reload()
+  await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.getByTestId('start')).toBeVisible()
   await page.getByTestId('start').click()
   await expect(page.locator('[data-testid="profile"][data-name="Kind 1"]')).toBeVisible()

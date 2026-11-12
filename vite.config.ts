@@ -10,7 +10,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: false,
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icons/*.png', 'audio/manifest.json', 'audio/clips/*.mp3'],
       manifest: {
         name: 'TickTack – Die Uhr lernen',
         short_name: 'TickTack',
@@ -46,7 +46,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2}'],
+        cacheId: 'ticktack-v2',
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,woff2,mp3,json}'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/\.[a-z0-9]+$/i],
       },
